@@ -471,3 +471,502 @@ def perform_weather_verification(
         ],
         "real_weather_data": weather_data
     }
+# ==========================================
+# ZYVORA LIVE WEATHER DASHBOARD
+# REAL-TIME WEATHER INTELLIGENCE
+# ==========================================
+
+def get_live_weather_dashboard(
+    latitude,
+    longitude
+):
+
+    if (
+        latitude is None
+        or longitude is None
+    ):
+
+        return {
+            "success": False,
+            "message":
+                "Latitude and longitude are required",
+            "data": None
+        }
+
+
+    try:
+
+        params = {
+
+            "latitude":
+                latitude,
+
+            "longitude":
+                longitude,
+
+            "current": (
+                "temperature_2m,"
+                "relative_humidity_2m,"
+                "apparent_temperature,"
+                "precipitation,"
+                "rain,"
+                "weather_code,"
+                "cloud_cover,"
+                "wind_speed_10m,"
+                "wind_direction_10m,"
+                "surface_pressure,"
+                "visibility"
+            ),
+
+            "hourly": (
+                "temperature_2m,"
+                "precipitation_probability,"
+                "precipitation,"
+                "rain,"
+                "weather_code,"
+                "wind_speed_10m"
+            ),
+
+            "forecast_days":
+                1,
+
+            "timezone":
+                "auto"
+
+        }
+
+
+        response = requests.get(
+
+            WEATHER_API_URL,
+
+            params=params,
+
+            timeout=15
+
+        )
+
+
+        response.raise_for_status()
+
+
+        weather_response = (
+            response.json()
+        )
+
+
+        current = (
+            weather_response.get(
+                "current",
+                {}
+            )
+        )
+
+
+        hourly = (
+            weather_response.get(
+                "hourly",
+                {}
+            )
+        )
+
+
+        weather_code = (
+            current.get(
+                "weather_code"
+            )
+        )
+
+
+        weather_description = (
+            WEATHER_CODES.get(
+                weather_code,
+                "Unknown"
+            )
+        )
+
+
+        temperature = (
+            current.get(
+                "temperature_2m"
+            )
+        )
+
+
+        humidity = (
+            current.get(
+                "relative_humidity_2m"
+            )
+        )
+
+
+        precipitation = (
+            current.get(
+                "precipitation"
+            )
+        )
+
+
+        wind_speed = (
+            current.get(
+                "wind_speed_10m"
+            )
+        )
+
+
+        # ==================================
+        # WEATHER RISK ANALYSIS
+        # ==================================
+
+        risk_level = "LOW"
+
+        risk_reasons = []
+
+
+        if (
+            weather_code
+            in [95, 96, 99]
+        ):
+
+            risk_level = "HIGH"
+
+            risk_reasons.append(
+                "Thunderstorm activity detected"
+            )
+
+
+        if (
+            precipitation
+            and precipitation >= 10
+        ):
+
+            risk_level = "HIGH"
+
+            risk_reasons.append(
+                "Heavy precipitation detected"
+            )
+
+
+        elif (
+            precipitation
+            and precipitation >= 2
+        ):
+
+            if risk_level != "HIGH":
+
+                risk_level = "MEDIUM"
+
+            risk_reasons.append(
+                "Moderate precipitation detected"
+            )
+
+
+        if (
+            wind_speed
+            and wind_speed >= 60
+        ):
+
+            risk_level = "HIGH"
+
+            risk_reasons.append(
+                "Very strong winds detected"
+            )
+
+
+        elif (
+            wind_speed
+            and wind_speed >= 35
+        ):
+
+            if risk_level == "LOW":
+
+                risk_level = "MEDIUM"
+
+            risk_reasons.append(
+                "Strong winds detected"
+            )
+
+
+        if (
+            temperature
+            and temperature >= 40
+        ):
+
+            if risk_level == "LOW":
+
+                risk_level = "HIGH"
+
+            risk_reasons.append(
+                "Extreme temperature detected"
+            )
+
+
+        if not risk_reasons:
+
+            risk_reasons.append(
+                "No major weather risk detected"
+            )
+
+
+        # ==================================
+        # HOURLY FORECAST
+        # NEXT 12 HOURS
+        # ==================================
+
+        forecast = []
+
+
+        times = (
+            hourly.get(
+                "time",
+                []
+            )
+        )
+
+
+        temperatures = (
+            hourly.get(
+                "temperature_2m",
+                []
+            )
+        )
+
+
+        rain_probabilities = (
+            hourly.get(
+                "precipitation_probability",
+                []
+            )
+        )
+
+
+        precipitation_values = (
+            hourly.get(
+                "precipitation",
+                []
+            )
+        )
+
+
+        weather_codes = (
+            hourly.get(
+                "weather_code",
+                []
+            )
+        )
+
+
+        wind_speeds = (
+            hourly.get(
+                "wind_speed_10m",
+                []
+            )
+        )
+
+
+        for index in range(
+            min(12, len(times))
+        ):
+
+            forecast.append({
+
+                "time":
+                    times[index],
+
+                "temperature":
+                    temperatures[index]
+                    if index < len(temperatures)
+                    else None,
+
+                "rain_probability":
+                    rain_probabilities[index]
+                    if index < len(
+                        rain_probabilities
+                    )
+                    else None,
+
+                "precipitation":
+                    precipitation_values[index]
+                    if index < len(
+                        precipitation_values
+                    )
+                    else None,
+
+                "weather_code":
+                    weather_codes[index]
+                    if index < len(
+                        weather_codes
+                    )
+                    else None,
+
+                "weather_description":
+                    WEATHER_CODES.get(
+                        weather_codes[index],
+                        "Unknown"
+                    )
+                    if index < len(
+                        weather_codes
+                    )
+                    else "Unknown",
+
+                "wind_speed":
+                    wind_speeds[index]
+                    if index < len(
+                        wind_speeds
+                    )
+                    else None
+
+            })
+
+
+        # ==================================
+        # FINAL RESPONSE
+        # ==================================
+
+        return {
+
+            "success":
+                True,
+
+            "source":
+                "Open-Meteo",
+
+            "message":
+                "Live weather intelligence retrieved successfully",
+
+            "data": {
+
+                "location": {
+
+                    "latitude":
+                        latitude,
+
+                    "longitude":
+                        longitude
+
+                },
+
+
+                "current_weather": {
+
+                    "temperature":
+                        temperature,
+
+                    "apparent_temperature":
+                        current.get(
+                            "apparent_temperature"
+                        ),
+
+                    "humidity":
+                        humidity,
+
+                    "precipitation":
+                        precipitation,
+
+                    "rain":
+                        current.get(
+                            "rain"
+                        ),
+
+                    "weather_code":
+                        weather_code,
+
+                    "weather_description":
+                        weather_description,
+
+                    "cloud_cover":
+                        current.get(
+                            "cloud_cover"
+                        ),
+
+                    "wind_speed":
+                        wind_speed,
+
+                    "wind_direction":
+                        current.get(
+                            "wind_direction_10m"
+                        ),
+
+                    "surface_pressure":
+                        current.get(
+                            "surface_pressure"
+                        ),
+
+                    "visibility":
+                        current.get(
+                            "visibility"
+                        ),
+
+                    "time":
+                        current.get(
+                            "time"
+                        )
+
+                },
+
+
+                "risk_analysis": {
+
+                    "risk_level":
+                        risk_level,
+
+                    "reasons":
+                        risk_reasons
+
+                },
+
+
+                "hourly_forecast":
+                    forecast
+
+            }
+
+        }
+
+
+    except requests.exceptions.Timeout:
+
+        return {
+
+            "success":
+                False,
+
+            "message":
+                "Weather API request timed out",
+
+            "data":
+                None
+
+        }
+
+
+    except requests.exceptions.RequestException as error:
+
+        return {
+
+            "success":
+                False,
+
+            "message":
+                f"Weather API error: {str(error)}",
+
+            "data":
+                None
+
+        }
+
+
+    except Exception as error:
+
+        return {
+
+            "success":
+                False,
+
+            "message":
+                f"Live weather processing failed: {str(error)}",
+
+            "data":
+                None
+
+        }

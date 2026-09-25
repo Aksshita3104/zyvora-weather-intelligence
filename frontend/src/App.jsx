@@ -8,12 +8,55 @@ import {
 } from "react-leaflet";
 
 import "leaflet/dist/leaflet.css";
-import "./App.css";
+// import "./App.css";
+import "./Appprofessional.css";
+import AdminLogin from "./pages/AdminLogin";
 
 const API_URL = "http://127.0.0.1:8000";
 
 const INDIA_CENTER = [22.5937, 78.9629];
+// =====================================================
+// ZYVORA LIVE WEATHER LOCATIONS
+// =====================================================
 
+const WEATHER_CITIES = {
+
+  Madurai: {
+    latitude: 9.9252,
+    longitude: 78.1198,
+  },
+
+  Chennai: {
+    latitude: 13.0827,
+    longitude: 80.2707,
+  },
+
+  Mumbai: {
+    latitude: 19.0760,
+    longitude: 72.8777,
+  },
+
+  Delhi: {
+    latitude: 28.6139,
+    longitude: 77.2090,
+  },
+
+  Kolkata: {
+    latitude: 22.5726,
+    longitude: 88.3639,
+  },
+
+  Bengaluru: {
+    latitude: 12.9716,
+    longitude: 77.5946,
+  },
+
+  Hyderabad: {
+    latitude: 17.3850,
+    longitude: 78.4867,
+  },
+
+};
 const EVENTS = {
   Flood: { icon: "🌊", color: "#2563eb" },
   "Heavy Rainfall": { icon: "🌧️", color: "#0ea5e9" },
@@ -37,20 +80,37 @@ function AutoCenter({ reports }) {
 
   useEffect(() => {
 
-    if (reports.length > 0) {
+    if (reports.length === 1) {
 
-      const latest = reports[0];
+      const only = reports[0];
 
       map.flyTo(
         [
-          Number(latest.latitude),
-          Number(latest.longitude),
+          Number(only.latitude),
+          Number(only.longitude),
         ],
-        reports.length === 1 ? 7 : 5,
+        7,
         {
-          duration: 1,
+          duration: 0.8,
         }
       );
+
+      return;
+    }
+
+    if (reports.length > 1) {
+
+      const bounds = reports.map((report) => [
+        Number(report.latitude),
+        Number(report.longitude),
+      ]);
+
+      map.fitBounds(bounds, {
+        padding: [36, 36],
+        maxZoom: 7,
+        animate: true,
+        duration: 0.8,
+      });
 
     }
 
@@ -81,6 +141,61 @@ const statusClass = (status) =>
     .replace(/\s+/g, "-")}`;
 
 
+const weatherMood = (description) => {
+
+  const d = String(description || "").toLowerCase();
+
+  if (/thunder|storm/.test(d)) return "storm";
+  if (/snow|sleet|ice pellet/.test(d)) return "snow";
+  if (/fog|mist|haze/.test(d)) return "fog";
+  if (/drizzle|rain|shower/.test(d)) return "rain";
+  if (/overcast|cloud/.test(d)) return "cloudy";
+  if (/clear|sun/.test(d)) return "sunny";
+
+  return "default";
+
+};
+
+
+// Online weather images for Live Weather News cards.
+// The image is selected from the event/title/description so every
+// weather condition gets a visually relevant image instead of one
+// repeated dark-cloud fallback.
+const WEATHER_NEWS_IMAGES = {
+  sunny: "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=85",
+  cloudy: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1400&q=85",
+  rain: "https://images.unsplash.com/photo-1519692933481-e162a57d6721?auto=format&fit=crop&w=1400&q=85",
+  storm: "https://images.unsplash.com/photo-1461511669078-d46bf351cd6e?auto=format&fit=crop&w=1400&q=85",
+  fog: "https://loremflickr.com/1400/800/fog,weather?lock=21",
+  heatwave: "https://loremflickr.com/1400/800/heatwave,weather?lock=22",
+  wind: "https://loremflickr.com/1400/800/wind,weather?lock=23",
+  cyclone: "https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1400&q=85",
+  default: "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=85",
+};
+
+const weatherNewsImage = (news) => {
+  const text = [
+    news?.event_type,
+    news?.title,
+    news?.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/cyclone|hurricane|tropical storm/.test(text)) return WEATHER_NEWS_IMAGES.cyclone;
+  if (/thunderstorm|lightning|severe storm|storm/.test(text)) return WEATHER_NEWS_IMAGES.storm;
+  if (/heavy rain|rainfall|rain|drizzle|shower|flood/.test(text)) return WEATHER_NEWS_IMAGES.rain;
+  if (/fog|mist|haze/.test(text)) return WEATHER_NEWS_IMAGES.fog;
+  if (/heatwave|heat wave|extreme heat|hot weather|temperature/.test(text)) return WEATHER_NEWS_IMAGES.heatwave;
+  if (/strong wind|high wind|windstorm|gust|wind/.test(text)) return WEATHER_NEWS_IMAGES.wind;
+  if (/overcast|cloudy|cloud cover|cloud/.test(text)) return WEATHER_NEWS_IMAGES.cloudy;
+  if (/clear|sunny|sunshine|bright/.test(text)) return WEATHER_NEWS_IMAGES.sunny;
+
+  return WEATHER_NEWS_IMAGES.default;
+};
+
+
 
 
 // =====================================================
@@ -96,6 +211,34 @@ function App() {
 
   const [activePage, setActivePage] =
     useState("Dashboard");
+
+
+  // =====================================================
+  // ADMIN AUTHENTICATION
+  // =====================================================
+
+  const [isAdmin, setIsAdmin] =
+    useState(() => {
+      try {
+        return Boolean(localStorage.getItem("admin_token"));
+      } catch {
+        return false;
+      }
+    });
+
+  const [adminReports, setAdminReports] =
+    useState([]);
+
+  const [adminLoading, setAdminLoading] =
+    useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("zyvora-active-page", activePage);
+    } catch {
+      // Ignore storage errors and keep normal navigation working.
+    }
+  }, [activePage]);
 
 
   const [reports, setReports] =
@@ -152,7 +295,48 @@ function App() {
     useState(null);
 
 
+  // =====================================================
+  // LIVE WEATHER NEWS STATE
+  // =====================================================
 
+  const [liveNews, setLiveNews] =
+    useState([]);
+
+
+  const [newsLoading, setNewsLoading] =
+    useState(false);
+
+
+  const [newsError, setNewsError] =
+    useState("");
+
+
+  const [newsUpdatedAt, setNewsUpdatedAt] =
+    useState(null);
+
+
+// =====================================================
+// REAL-TIME WEATHER STATE
+// =====================================================
+
+const [selectedWeatherCity, setSelectedWeatherCity] =
+  useState("Madurai");
+
+
+const [liveWeather, setLiveWeather] =
+  useState(null);
+
+
+const [weatherLoading, setWeatherLoading] =
+  useState(false);
+
+
+const [weatherError, setWeatherError] =
+  useState("");
+
+
+const [weatherUpdatedAt, setWeatherUpdatedAt] =
+  useState(null);
   // =====================================================
   // FILTER STATE
   // =====================================================
@@ -163,6 +347,10 @@ function App() {
       event: "All Events",
 
       location: "",
+
+      state: "All States",
+
+      district: "All Districts",
 
       status: "All Status",
 
@@ -202,6 +390,61 @@ function App() {
 
     };
 
+
+
+  // =====================================================
+  // LOAD PROTECTED ADMIN REPORTS
+  // =====================================================
+
+  const loadAdminReports =
+    async () => {
+
+      const token = localStorage.getItem("admin_token");
+
+      if (!token) {
+        return;
+      }
+
+      try {
+
+        setAdminLoading(true);
+
+        const response = await fetch(
+          `${API_URL}/api/admin/reports`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem("admin_token");
+          localStorage.removeItem("admin_role");
+          setIsAdmin(false);
+          setActivePage("Admin Panel");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Unable to load admin reports");
+        }
+
+        const data = await response.json();
+        setAdminReports(Array.isArray(data) ? data : []);
+
+      } catch (error) {
+        console.error("Admin reports error:", error);
+      } finally {
+        setAdminLoading(false);
+      }
+    };
+
+  useEffect(() => {
+    if (activePage === "Admin Panel" && isAdmin) {
+      loadAdminReports();
+    }
+  }, [activePage, isAdmin]);
 
 
   // =====================================================
@@ -264,6 +507,186 @@ function App() {
 
 
   // =====================================================
+  // FETCH LIVE WEATHER NEWS
+  // =====================================================
+
+  const loadLiveNews =
+    async () => {
+
+      try {
+
+        setNewsLoading(true);
+
+        setNewsError("");
+
+       const paths = [
+  "/api/realtime/news/preview",
+];
+
+        let result = null;
+        let lastError = null;
+
+        for (const path of paths) {
+
+          try {
+
+            const response =
+              await fetch(
+                `${API_URL}${path}`
+              );
+
+            if (!response.ok) {
+
+              throw new Error(
+                `${response.status} ${response.statusText}`
+              );
+
+            }
+
+            result =
+              await response.json();
+
+            break;
+
+          } catch (error) {
+
+            lastError = error;
+
+          }
+
+        }
+
+        if (!result) {
+
+          throw (
+            lastError ||
+            new Error(
+              "Unable to fetch live weather news"
+            )
+          );
+
+        }
+
+        const newsData =
+          Array.isArray(result)
+            ? result
+            : (
+                Array.isArray(result.data)
+                  ? result.data
+                  : []
+              );
+
+        setLiveNews(newsData);
+
+        setNewsUpdatedAt(
+          new Date()
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Live news error:",
+          error
+        );
+
+        setNewsError(
+          "Cannot connect to the live news service. Please check that the FastAPI realtime service is running."
+        );
+
+      } finally {
+
+        setNewsLoading(false);
+
+      }
+
+    };
+    // =====================================================
+// FETCH REAL-TIME WEATHER
+// =====================================================
+
+const loadLiveWeather =
+  async (
+    city = selectedWeatherCity
+  ) => {
+
+    try {
+
+      setWeatherLoading(true);
+
+      setWeatherError("");
+
+      const coordinates =
+        WEATHER_CITIES[city];
+
+
+      if (!coordinates) {
+
+        throw new Error(
+          "Selected city coordinates not found"
+        );
+
+      }
+
+
+      const query =
+
+        `/api/realtime/weather/current?latitude=${coordinates.latitude}&longitude=${coordinates.longitude}`;
+
+
+      const data =
+        await fetchJSON(query);
+
+
+      if (!data.success) {
+
+        throw new Error(
+
+          data.message
+          ||
+          "Unable to load live weather"
+
+        );
+
+      }
+
+
+      setLiveWeather(
+        data.data
+      );
+
+
+      setWeatherUpdatedAt(
+        new Date()
+      );
+
+
+    }
+    catch (error) {
+
+      console.error(
+        "Live weather error:",
+        error
+      );
+
+
+      setWeatherError(
+        error.message
+        ||
+        "Unable to connect to live weather service"
+      );
+
+    }
+    finally {
+
+      setWeatherLoading(false);
+
+    }
+
+  };
+
+
+
+  // =====================================================
   // INITIAL LOAD
   // =====================================================
 
@@ -286,6 +709,61 @@ function App() {
   }, []);
 
 
+  // =====================================================
+  // LIVE NEWS AUTO REFRESH
+  // =====================================================
+
+  useEffect(() => {
+
+    loadLiveNews();
+
+    const newsTimer =
+      setInterval(
+        loadLiveNews,
+        300000
+      );
+
+    return () =>
+      clearInterval(newsTimer);
+
+  }, []);
+
+// =====================================================
+// INITIAL LIVE WEATHER LOAD
+// =====================================================
+
+useEffect(() => {
+
+  loadLiveWeather(
+    selectedWeatherCity
+  );
+
+
+  const weatherTimer =
+    setInterval(
+
+      () => {
+
+        loadLiveWeather(
+          selectedWeatherCity
+        );
+
+      },
+
+      300000
+
+    );
+
+
+  return () =>
+    clearInterval(
+      weatherTimer
+    );
+
+
+}, [
+  selectedWeatherCity
+]);
 
 
   // =====================================================
@@ -366,6 +844,33 @@ function App() {
             &&
 
             (
+              filters.state ===
+                "All States"
+
+              ||
+
+              String(report.state || "") ===
+                filters.state
+            )
+
+            &&
+
+            (
+              filters.district ===
+                "All Districts"
+
+              ||
+
+              String(
+                report.district ||
+                report.city ||
+                ""
+              ) === filters.district
+            )
+
+            &&
+
+            (
               filters.status ===
                 "All Status"
 
@@ -406,6 +911,55 @@ function App() {
   // =====================================================
   // EVENT TYPES
   // =====================================================
+
+  const filteredMappedReports =
+    useMemo(
+      () =>
+        filteredReports.filter(
+          (report) =>
+            Number.isFinite(Number(report.latitude)) &&
+            Number.isFinite(Number(report.longitude))
+        ),
+      [filteredReports]
+    );
+
+
+  const states =
+    useMemo(
+      () =>
+        [
+          ...new Set(
+            reports
+              .map((report) => String(report.state || "").trim())
+              .filter(Boolean)
+          ),
+        ].sort(),
+      [reports]
+    );
+
+  const districts =
+    useMemo(
+      () =>
+        [
+          ...new Set(
+            reports
+              .filter(
+                (report) =>
+                  filters.state === "All States" ||
+                  String(report.state || "") === filters.state
+              )
+              .map((report) =>
+                String(
+                  report.district ||
+                  report.city ||
+                  ""
+                ).trim()
+              )
+              .filter(Boolean)
+          ),
+        ].sort(),
+      [reports, filters.state]
+    );
 
   const eventTypes =
     useMemo(
@@ -769,6 +1323,11 @@ function App() {
             method:
               "DELETE",
 
+            headers: {
+              Authorization:
+                `Bearer ${localStorage.getItem("admin_token") || ""}`,
+            },
+
           }
 
         );
@@ -801,6 +1360,21 @@ function App() {
 
 
   // =====================================================
+  // ADMIN LOGOUT
+  // =====================================================
+
+  const handleAdminLogout = () => {
+
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_role");
+
+    setAdminReports([]);
+    setIsAdmin(false);
+    setActivePage("Dashboard");
+  };
+
+
+  // =====================================================
   // SIDEBAR
   // =====================================================
 
@@ -817,6 +1391,11 @@ function App() {
       [
         "Live Weather Map",
         "🗺️",
+      ],
+
+      [
+        "Live Weather News",
+        "📰",
       ],
 
       [
@@ -1163,6 +1742,500 @@ function App() {
           />
 
         </div>
+          {/* =====================================================
+    REAL-TIME WEATHER INTELLIGENCE
+===================================================== */}
+
+<div className="live-weather-section">
+
+  <div className="live-weather-header">
+
+    <div>
+      <h2>🌦️ Real-Time Weather Intelligence</h2>
+
+      <p>
+        Live weather conditions powered by Open-Meteo
+      </p>
+    </div>
+
+
+    <div className="weather-controls">
+
+      <select
+        value={selectedWeatherCity}
+        onChange={(e) =>
+          setSelectedWeatherCity(
+            e.target.value
+          )
+        }
+        className="weather-city-select"
+      >
+
+        {Object.keys(
+          WEATHER_CITIES
+        ).map((city) => (
+
+          <option
+            key={city}
+            value={city}
+          >
+
+            {city}
+
+          </option>
+
+        ))}
+
+      </select>
+
+
+      <button
+        className="weather-refresh-btn"
+        onClick={() =>
+          loadLiveWeather(
+            selectedWeatherCity
+          )
+        }
+      >
+
+        🔄 Refresh
+
+      </button>
+
+    </div>
+
+  </div>
+
+
+  {/* ================= LOADING ================= */}
+
+  {weatherLoading && (
+
+    <div className="weather-status loading">
+
+      🌦️ Fetching live weather data...
+
+    </div>
+
+  )}
+
+
+  {/* ================= ERROR ================= */}
+
+  {weatherError && (
+
+    <div className="weather-status error">
+
+      ⚠️ {weatherError}
+
+    </div>
+
+  )}
+
+
+  {/* ================= WEATHER DATA ================= */}
+
+  {liveWeather &&
+    !weatherLoading && (
+
+      <>
+
+        {/* WEATHER MAIN CARD */}
+
+        <div
+          className={`weather-main-card mood-${weatherMood(
+            liveWeather.current_weather
+              ?.weather_description
+          )}`}
+        >
+
+          <div className="weather-main-left">
+
+            <div className="weather-city">
+
+              📍 {selectedWeatherCity}
+
+            </div>
+
+
+            <div className="weather-temperature">
+
+              {Math.round(
+                liveWeather.current_weather
+                  ?.temperature ?? 0
+              )}
+              °C
+
+            </div>
+
+
+            <div className="weather-condition">
+
+              {
+                liveWeather.current_weather
+                  ?.weather_description
+                  || "Unknown"
+              }
+
+            </div>
+
+
+            <div className="weather-feels">
+
+              Feels like{" "}
+
+              <strong>
+
+                {Math.round(
+                  liveWeather.current_weather
+                    ?.apparent_temperature ?? 0
+                )}
+                °C
+
+              </strong>
+
+            </div>
+
+          </div>
+
+
+          {/* RISK ANALYSIS */}
+
+          <div className="weather-risk-box">
+
+            <span className="risk-title">
+
+              ZYVORA WEATHER RISK
+
+            </span>
+
+
+            <div
+              className={`weather-risk-level ${(
+                liveWeather.risk_analysis
+                  ?.risk_level || "LOW"
+              ).toLowerCase()}`}
+            >
+
+              {
+                liveWeather.risk_analysis
+                  ?.risk_level || "LOW"
+              }
+
+            </div>
+
+
+            <div className="risk-reasons">
+
+              {(
+                liveWeather.risk_analysis
+                  ?.reasons || []
+              ).map((reason, index) => (
+
+                <div key={index}>
+
+                  • {reason}
+
+                </div>
+
+              ))}
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* WEATHER METRICS */}
+
+        <div className="weather-metrics-grid">
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              💧
+
+            </span>
+
+            <span className="metric-label">
+
+              Humidity
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.humidity ?? "--"
+              }%
+
+            </strong>
+
+          </div>
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              🌧️
+
+            </span>
+
+            <span className="metric-label">
+
+              Precipitation
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.precipitation ?? "--"
+              } mm
+
+            </strong>
+
+          </div>
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              💨
+
+            </span>
+
+            <span className="metric-label">
+
+              Wind Speed
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.wind_speed ?? "--"
+              } km/h
+
+            </strong>
+
+          </div>
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              ☁️
+
+            </span>
+
+            <span className="metric-label">
+
+              Cloud Cover
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.cloud_cover ?? "--"
+              }%
+
+            </strong>
+
+          </div>
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              👁️
+
+            </span>
+
+            <span className="metric-label">
+
+              Visibility
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.visibility
+                  ? `${(
+                      liveWeather.current_weather
+                        .visibility / 1000
+                    ).toFixed(1)} km`
+                  : "--"
+              }
+
+            </strong>
+
+          </div>
+
+
+          <div className="weather-metric-card">
+
+            <span className="metric-icon">
+
+              🧭
+
+            </span>
+
+            <span className="metric-label">
+
+              Wind Direction
+
+            </span>
+
+            <strong>
+
+              {
+                liveWeather.current_weather
+                  ?.wind_direction ?? "--"
+              }°
+
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        {/* LAST UPDATED */}
+
+        <div className="weather-last-updated">
+
+          🟢 Live Data
+
+          {weatherUpdatedAt && (
+
+            <>
+              {" "}
+              • Last updated{" "}
+
+              {
+                weatherUpdatedAt
+                  .toLocaleTimeString()
+              }
+
+            </>
+
+          )}
+
+          {" "}
+          • Source: Open-Meteo
+
+        </div>
+
+
+        {/* ================= HOURLY FORECAST ================= */}
+
+        <div className="hourly-weather-section">
+
+          <h3>
+
+            ⏰ Next Hours Forecast
+
+          </h3>
+
+
+          <div className="hourly-weather-grid">
+
+            {(
+              liveWeather.hourly_forecast
+              || []
+            ).slice(0, 8)
+              .map((hour, index) => (
+
+                <div
+                  className="hourly-weather-card"
+                  key={index}
+                >
+
+                  <span className="hour-time">
+
+                    {
+                      hour.time
+                        ? new Date(
+                            hour.time
+                          ).toLocaleTimeString(
+                            [],
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            }
+                          )
+                        : "--"
+                    }
+
+                  </span>
+
+
+                  <span className="hour-temp">
+
+                    {Math.round(
+                      hour.temperature ?? 0
+                    )}°C
+
+                  </span>
+
+
+                  <span className="hour-condition">
+
+                    {
+                      hour.weather_description
+                      || "Unknown"
+                    }
+
+                  </span>
+
+
+                  <span className="hour-rain">
+
+                    🌧️ {
+                      hour.rain_probability
+                      ?? 0
+                    }%
+
+                  </span>
+
+
+                  <span className="hour-wind">
+
+                    💨 {
+                      hour.wind_speed
+                      ?? 0
+                    } km/h
+
+                  </span>
+
+                </div>
+
+              ))}
+
+          </div>
+
+        </div>
+
+      </>
+
+    )}
+
+</div>
 
 
 
@@ -1627,6 +2700,125 @@ function App() {
 
 
 
+      <div className="map-filter-panel panel">
+        <div className="map-filter-heading">
+          <div>
+            <div className="eyebrow">MAP FILTERS</div>
+            <h3>Filter Weather Intelligence</h3>
+            <p>Select state and district to focus the live map. Multiple filters work together.</p>
+          </div>
+          <button
+            className="secondary"
+            onClick={() =>
+              setFilters({
+                ...filters,
+                state: "All States",
+                district: "All Districts",
+              })
+            }
+          >
+            Clear Location
+          </button>
+        </div>
+
+        <div className="map-filter-grid">
+          <label>
+            <span>Event</span>
+            <select
+              value={filters.event}
+              onChange={(e) =>
+                setFilters({ ...filters, event: e.target.value })
+              }
+            >
+              <option>All Events</option>
+              {eventTypes.map((event) => (
+                <option key={event}>{event}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>State</span>
+            <select
+              value={filters.state}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  state: e.target.value,
+                  district: "All Districts",
+                })
+              }
+            >
+              <option>All States</option>
+              {states.map((state) => (
+                <option key={state}>{state}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>District / City</span>
+            <select
+              value={filters.district}
+              onChange={(e) =>
+                setFilters({ ...filters, district: e.target.value })
+              }
+            >
+              <option>All Districts</option>
+              {districts.map((district) => (
+                <option key={district}>{district}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Status</span>
+            <select
+              value={filters.status}
+              onChange={(e) =>
+                setFilters({ ...filters, status: e.target.value })
+              }
+            >
+              <option>All Status</option>
+              <option>Verified</option>
+              <option>Under Review</option>
+              <option>Suspicious</option>
+              <option>Duplicate</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Source</span>
+            <select
+              value={filters.source}
+              onChange={(e) =>
+                setFilters({ ...filters, source: e.target.value })
+              }
+            >
+              <option>All Sources</option>
+              {sources.map((sourceItem) => (
+                <option key={sourceItem}>{sourceItem}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Search</span>
+            <input
+              value={filters.location}
+              placeholder="Search city or state..."
+              onChange={(e) =>
+                setFilters({ ...filters, location: e.target.value })
+              }
+            />
+          </label>
+        </div>
+
+        <div className="map-filter-result">
+          <strong>{filteredMappedReports.length}</strong> matching mapped report(s)
+        </div>
+      </div>
+
       <div
         className="map-summary"
       >
@@ -1649,7 +2841,7 @@ function App() {
           label="Mapped"
 
           value={
-            mappedReports.length
+            filteredMappedReports.length
           }
 
           icon="📍"
@@ -1680,7 +2872,7 @@ function App() {
         <WeatherMap
 
           reports={
-            mappedReports
+            filteredMappedReports
           }
 
           height={620}
@@ -1688,12 +2880,14 @@ function App() {
         />
 
 
-        {mappedReports.length === 0 && (
+        {filteredMappedReports.length === 0 && (
 
           <Empty
 
             text={
-              "Reports need a recognized location before they can appear on the map."
+              filteredReports.length === 0
+                ? "No matching reports found for the selected filters."
+                : "Matching reports were found, but none has valid map coordinates."
             }
 
           />
@@ -1730,6 +2924,155 @@ function App() {
 
       </div>
 
+
+    </section>
+
+  );
+
+
+
+
+  // =====================================================
+  // LIVE WEATHER NEWS
+  // =====================================================
+
+  const LiveWeatherNews = () => (
+
+    <section>
+
+      <Header
+        eyebrow={"REAL-TIME NEWS INTELLIGENCE"}
+        title={"Live Weather News"}
+        description={"Live weather and disaster intelligence collected from NewsAPI and processed by ZYVORA."}
+        action={false}
+      />
+
+      <div className="live-news-toolbar">
+
+        <div className="news-live-status">
+          <span className="news-live-dot" />
+          LIVE NEWS DATA
+        </div>
+
+        <div className="news-toolbar-right">
+
+          {newsUpdatedAt && (
+            <span className="news-updated">
+              Updated: {newsUpdatedAt.toLocaleTimeString()}
+            </span>
+          )}
+
+          <button
+            className="refresh-button"
+            onClick={loadLiveNews}
+            disabled={newsLoading}
+          >
+            {newsLoading ? "Loading..." : "↻ Refresh News"}
+          </button>
+
+        </div>
+
+      </div>
+
+      {newsError && (
+        <div className="alert">
+          ⚠️ {newsError}
+        </div>
+      )}
+
+      {newsLoading && liveNews.length === 0 && (
+        <div className="news-loading">
+          <div className="news-spinner" />
+          <p>Fetching real-time weather intelligence...</p>
+        </div>
+      )}
+
+      {liveNews.length > 0 && (
+        <div className="live-news-grid">
+
+          {liveNews.map((news, index) => {
+
+            const info = eventInfo(news.event_type);
+            const risk = String(news.risk_level || "LOW").toLowerCase();
+
+            return (
+              <article
+                className="live-news-card"
+                key={news.url || `${news.title}-${index}`}
+              >
+
+                <div
+                  className="news-image"
+                  style={{
+                    backgroundImage: `url("${weatherNewsImage(news)}")`,
+                  }}
+                  aria-hidden="true"
+                />
+
+                <div className="news-card-top">
+                  <span className="news-event">
+                    {info.icon} {news.event_type || "Weather Event"}
+                  </span>
+
+                  <span className={`risk-badge ${risk}`}>
+                    ⚠️ {news.risk_level || "LOW"}
+                  </span>
+                </div>
+
+                <h3>{news.title}</h3>
+
+                <p className="news-description">
+                  {news.description || "No description available."}
+                </p>
+
+                <div className="news-location">
+                  📍 {news.location || "Location not detected"}
+                </div>
+
+                <div className="news-meta">
+                  <span>📰 {news.source || "News Source"}</span>
+                  <span>🎯 {Math.round(Number(news.confidence || 0))}%</span>
+                </div>
+
+                <div className="news-date">
+                  🕒 {news.published_at
+                    ? new Date(news.published_at).toLocaleString()
+                    : "Recently"}
+                </div>
+
+                <div className="news-source-row">
+                  <span>ZYVORA Source</span>
+                  <strong>{news.data_source || "Live News"}</strong>
+                </div>
+
+                {news.url && (
+                  <a
+                    href={news.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="news-link"
+                  >
+                    Read Original Article →
+                  </a>
+                )}
+
+              </article>
+            );
+
+          })}
+
+        </div>
+      )}
+
+      {!newsLoading &&
+        liveNews.length === 0 &&
+        !newsError && (
+          <div className="news-empty">
+            📰
+            <h3>No Live Weather News Available</h3>
+            <p>Click Refresh News to fetch the latest weather intelligence.</p>
+          </div>
+        )}
 
     </section>
 
@@ -1943,6 +3286,12 @@ function App() {
 
               location:
                 "",
+
+              state:
+                "All States",
+
+              district:
+                "All Districts",
 
               status:
                 "All Status",
@@ -2331,6 +3680,10 @@ function App() {
 
             <span>
               ✓ Multi-Factor Trust Analysis
+            </span>
+
+            <span>
+              ✓ AI Content Likelihood Analysis
             </span>
 
             <span>
@@ -2781,8 +4134,16 @@ function App() {
 
 
 
-        {reports.map(
-          (report) => (
+        {adminLoading ? (
+
+          <div className="admin-loading">
+            Loading protected intelligence...
+          </div>
+
+        ) : adminReports.length > 0 ? (
+
+          adminReports.map(
+            (report) => (
 
             <div
 
@@ -2884,10 +4245,30 @@ function App() {
 
             </div>
 
+            )
           )
+
+        ) : (
+
+          <div className="admin-loading">
+            No protected reports available.
+          </div>
+
         )}
 
 
+      </div>
+
+
+      <div className="admin-footer-actions">
+        <span>Authenticated as Administrator</span>
+
+        <button
+          className="admin-logout-button"
+          onClick={handleAdminLogout}
+        >
+          🔒 Logout
+        </button>
       </div>
 
 
@@ -2896,6 +4277,22 @@ function App() {
   );
 
 
+
+
+  // =====================================================
+  // ADMIN PAGE PROTECTION
+  // =====================================================
+
+  if (activePage === "Admin Panel" && !isAdmin) {
+    return (
+      <AdminLogin
+        onLogin={() => {
+          setIsAdmin(true);
+          setAdminReports([]);
+        }}
+      />
+    );
+  }
 
 
   // =====================================================
@@ -2914,6 +4311,10 @@ function App() {
 
     case "Live Weather Map":
       page = LiveMap();
+      break;
+
+    case "Live Weather News":
+      page = LiveWeatherNews();
       break;
 
     case "Reports":
@@ -2953,7 +4354,10 @@ function App() {
 
 
       <main
-        className="main-content"
+        className={`main-content ${activePage === "Dashboard" ? "dashboard-page" : ""} active-page-${activePage.toLowerCase().replace(/\s+/g, "-")} mood-${weatherMood(
+          liveWeather?.current_weather
+            ?.weather_description
+        )}`}
       >
 
         {page}
@@ -2976,15 +4380,9 @@ function App() {
             deleteReport
           }
 
-          openMap={() => {
-
-            setSelectedReport(null);
-
-            setActivePage(
-              "Live Weather Map"
-            );
-
-          }}
+          isAdmin={
+            isAdmin
+          }
 
         />
 
@@ -3329,7 +4727,7 @@ function WeatherMap({
 
                 ]}
 
-                radius={11}
+                radius={18}
 
                 pathOptions={{
 
@@ -3722,6 +5120,90 @@ function AnalysisResult({
           </div>
 
 
+          {/* =====================================================
+              AI CONTENT ANALYSIS
+          ===================================================== */}
+
+          <div className="ai-content-analysis">
+
+            <div className="ai-content-header">
+
+              <div>
+
+                <span className="ai-content-icon">🤖</span>
+
+                <div>
+                  <h4>AI Content Analysis</h4>
+                  <p>Prototype linguistic likelihood analysis</p>
+                </div>
+
+              </div>
+
+              <span className="ai-content-badge">SUPPORTING SIGNAL</span>
+
+            </div>
+
+            <div className="ai-content-metrics">
+
+              <div className="ai-content-metric">
+                <small>AI CONTENT LIKELIHOOD</small>
+                <strong>
+                  {score(analysis?.ai_content_likelihood)}%
+                </strong>
+              </div>
+
+              <div className="ai-content-metric">
+                <small>HUMAN-LIKE LIKELIHOOD</small>
+                <strong>
+                  {score(analysis?.human_like_likelihood)}%
+                </strong>
+              </div>
+
+              <div className="ai-content-metric">
+                <small>DETECTION CONFIDENCE</small>
+                <strong>
+                  {score(analysis?.detection_confidence)}%
+                </strong>
+              </div>
+
+            </div>
+
+            <div className="ai-content-bar">
+              <div
+                className="ai-content-bar-fill"
+                style={{
+                  width: `${Math.min(100, Math.max(0, Number(analysis?.ai_content_likelihood || 0)))}%`,
+                }}
+              />
+            </div>
+
+            <div className="ai-content-signals">
+
+              <b>Detection signals</b>
+
+              {(analysis?.ai_content_signals || []).map(
+                (signal, index) => (
+                  <span key={index}>
+                    • {signal}
+                  </span>
+                )
+              )}
+
+              {(!analysis?.ai_content_signals ||
+                analysis.ai_content_signals.length === 0) && (
+                <span>• No strong style signals detected</span>
+              )}
+
+            </div>
+
+            <p className="ai-content-disclaimer">
+              This is a prototype heuristic estimate based on writing-style signals.
+              It is not proof that the text was generated by AI.
+            </p>
+
+          </div>
+
+
 
           <div
             className="explanation"
@@ -3825,7 +5307,7 @@ function ReportModal({
   report,
   close,
   deleteReport,
-  openMap,
+  isAdmin,
 }) {
 
   return (
@@ -3854,15 +5336,6 @@ function ReportModal({
         >
 
           <div>
-
-            <div
-              className="eyebrow"
-            >
-
-              WEATHER INTELLIGENCE REPORT
-
-            </div>
-
 
             <h3>
 
@@ -4067,35 +5540,25 @@ function ReportModal({
           className="modal-buttons"
         >
 
-          <button
+          {isAdmin && (
 
-            className="secondary"
+            <button
 
-            onClick={openMap}
+              className="danger"
 
-          >
+              onClick={() =>
+                deleteReport(
+                  report.id
+                )
+              }
 
-            🗺 View Map
+            >
 
-          </button>
+              Delete Report
 
+            </button>
 
-
-          <button
-
-            className="danger"
-
-            onClick={() =>
-              deleteReport(
-                report.id
-              )
-            }
-
-          >
-
-            Delete Report
-
-          </button>
+          )}
 
         </div>
 
